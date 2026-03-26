@@ -66,10 +66,10 @@ DEFAULT_VAL = df_prices.iloc[:, 0].mean()
 
 MODEL_INFO = {
         "endpoint": aws_endpoint_bitcoin,
-        "explainer": 'explainer_bitcoin.shap',
-        "pipeline": 'finalized_bitcoin_model.tar.gz',
+        "explainer": 'explainer_pca.shap',
+        "pipeline": 'finalized_pca_model.tar.gz',
         "keys": ["Close Price"],
-        "inputs": [{"name": "Close Price", "type": "number", "min": MIN_VAL, "max": MAX_VAL, "default": DEFAULT_VAL, "step": 100.0}]
+        "inputs": [{"name": "Close Price", "type": "number", "min": MIN_VAL, "default": DEFAULT_VAL, "step": 100.0}]
 }
 
 def load_pipeline(_session, bucket, key):
@@ -126,7 +126,7 @@ def display_explanation(input_df, session, aws_bucket):
     preprocessing_pipeline = Pipeline(steps=full_pipeline.steps[:-2])
     input_df_transformed = preprocessing_pipeline.transform(input_df)
     shap_values = explainer(input_df_transformed)
-    feature_names = full_pipeline[1:4].get_feature_names_out()
+    feature_names = full_pipeline[1:5].get_feature_names_out()
 
     exp = shap.Explanation(
         values=shap_values[0, :, 0],       # The matrix of SHAP values
@@ -158,7 +158,7 @@ with st.form("pred_form"):
         with cols[i % 2]:
             user_inputs[inp['name']] = st.number_input(
                 inp['name'].replace('_', ' ').upper(),
-                min_value=inp['min'], max_value=inp['max'], value=inp['default'], step=inp['step']
+                min_value=inp['min'], value=inp['default'], step=inp['step']
             )
     
     submitted = st.form_submit_button("Run Prediction")
