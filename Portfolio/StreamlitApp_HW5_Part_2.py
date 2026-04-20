@@ -31,7 +31,22 @@ project_root = os.path.abspath(os.path.join(current_dir, '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from src.feature_utils import convert_input_pca_regression
+def convert_input_pca_regression(raw_json_input, content_type='application/json'):
+    import json
+    import pandas as pd
+
+    if content_type == 'application/json':
+        data = json.loads(raw_json_input)
+
+        # if single prediction input comes in as a dict, wrap it in a list
+        if isinstance(data, dict):
+            df = pd.DataFrame([data])
+        else:
+            df = pd.DataFrame(data)
+
+        return df
+
+    raise ValueError(f"Unsupported content type: {content_type}")
 
 # Access the secrets
 aws_id = st.secrets["aws_credentials"]["AWS_ACCESS_KEY_ID"]
