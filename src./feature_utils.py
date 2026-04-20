@@ -13,7 +13,12 @@ import sys
 
 
 # ... continue with your script ...
+import json
 
+def convert_input_pca_regression(raw_json_input, content_type):
+    data = json.loads(raw_json_input)
+    df = pd.DataFrame([data])
+    return df
 def extract_features():
 
     return_period = 5
