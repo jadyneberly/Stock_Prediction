@@ -54,11 +54,26 @@ session = get_session(aws_id, aws_secret, aws_token)
 sm_session = sagemaker.Session(boto_session=session)
 
 MODEL_INFO = {
-        "endpoint": aws_endpoint,
-        "explainer": 'explainer_pca.shap', 
-        "pipeline": 'finalized_pca_model.tar.gz', 
-        "keys": ["RSI_15","MOM_15"], 
-        "inputs": [{"name": k, "type": "number", "min": -100.0, "max": 100.0, "default": 0.0, "step": 10.0} for k in ["RSI_15","MOM_15"]] 
+    "endpoint": aws_endpoint,
+    "explainer": "explainer_pca.shap",
+    "pipeline": "finalized_pca_model.tar.gz",
+    "keys": [
+        "EMA_5", "ROC_5", "MOM_5", "RSI_5", "MA_5",
+        "EMA_10", "ROC_10", "MOM_10", "RSI_10", "MA_10",
+        "EMA_15", "ROC_15", "MOM_15", "RSI_15", "MA_15",
+        "EMA_20", "ROC_20", "MOM_20", "RSI_20", "MA_20",
+        "EMA_30", "ROC_30", "MOM_30", "RSI_30", "MA_30"
+    ],
+    "inputs": [
+        {"name": k, "type": "number", "min": -100.0, "max": 100.0, "default": 0.0, "step": 0.1}
+        for k in [
+            "EMA_5", "ROC_5", "MOM_5", "RSI_5", "MA_5",
+            "EMA_10", "ROC_10", "MOM_10", "RSI_10", "MA_10",
+            "EMA_15", "ROC_15", "MOM_15", "RSI_15", "MA_15",
+            "EMA_20", "ROC_20", "MOM_20", "RSI_20", "MA_20",
+            "EMA_30", "ROC_30", "MOM_30", "RSI_30", "MA_30"
+        ]
+    ]
 }
 
 def load_pipeline(_session, bucket, key):
@@ -94,40 +109,53 @@ def call_model_api(input_df):
     predictor = Predictor(
         endpoint_name=MODEL_INFO["endpoint"],
         sagemaker_session=sm_session,
-        serializer=JSONSerializer(), 
-        deserializer=NumpyDeserializer() 
+        serializer=JSONSerializer(),
+        deserializer=NumpyDeserializer()
     )
 
     try:
         raw_pred = predictor.predict(input_df)
         pred_val = pd.DataFrame(raw_pred).values[-1][0]
-        mapping = {-1: "SELL", 0: "HOLD", 1: "BUY"}
-        return mapping.get(pred_val), 200
+        return str(pred_val), 200
     except Exception as e:
         return f"Error: {str(e)}", 500
 
 # Local Explainability
 def display_explanation(input_df, session, aws_bucket):
     explainer_name = MODEL_INFO["explainer"]
-    explainer = load_shap_explainer(session, aws_bucket, posixpath.join('explainer', explainer_name),os.path.join(tempfile.gettempdir(), explainer_name))
+    explainer = load_shap_explainer(
+        session,
+        aws_bucket,
+        posixpath.join('explainer', explainer_name),
+        os.path.join(tempfile.gettempdir(), explainer_name)
+    )
 
     raw_json_input = json.dumps(input_df)
     input_df = convert_input_pca_regression(raw_json_input, 'application/json')
 
     best_pipeline = load_pipeline(session, aws_bucket, 'sklearn-pipeline-deployment')
-    
-    preprocessing_pipeline = Pipeline(steps=best_pipeline.steps[0:2]) 
-    input_df_transformed = preprocessing_pipeline.transform(input_df) 
-    feature_names = best_pipeline[0:2].get_feature_names_out() 
-    input_df_transformed = pd.DataFrame(input_df_transformed, columns=feature_names) 
-    shap_values = explainer(input_df_transformed) 
 
-    st.subheader("🔍 Decision Transparency (SHAP)")
+    preprocessing_pipeline = Pipeline(steps=best_pipeline.steps[:-1])
+
+    input_df_transformed = preprocessing_pipeline.transform(input_df)
+    component_names = [f"KPCA_{i+1}" for i in range(input_df_transformed.shape[1])]
+    input_df_transformed = pd.DataFrame(input_df_transformed, columns=component_names)
+
+    shap_values = explainer(input_df_transformed)
+
+    pred_class = best_pipeline.predict(input_df)[0]
+    class_index = list(best_pipeline.named_steps['model'].classes_).index(pred_class)
+
+    st.subheader("🔎 Decision Transparency (SHAP)")
     fig, ax = plt.subplots(figsize=(10, 4))
-    shap.plots.waterfall(shap_values[0, :, 0])
+    shap.plots.waterfall(shap_values[0, :, class_index], max_display=10)
     st.pyplot(fig)
-    # top feature   
-    top_feature = pd.Series(shap_values[0, :, 0].values, index=shap_values[0, :, 0].feature_names).abs().idxmax()
+
+    top_feature = pd.Series(
+        shap_values[0, :, class_index].values,
+        index=shap_values[0, :, class_index].feature_names
+    ).abs().idxmax()
+
     st.info(f"**Business Insight:** The most influential factor in this decision was **{top_feature}**.")
 
 
