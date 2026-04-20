@@ -15,10 +15,7 @@ import sys
 # ... continue with your script ...
 import json
 
-def convert_input_pca_regression(raw_json_input, content_type):
-    data = json.loads(raw_json_input)
-    df = pd.DataFrame([data])
-    return df
+
 def extract_features():
 
     return_period = 5
@@ -71,5 +68,8 @@ def get_bitcoin_historical_prices(days = 60):
     df['Date'] = pd.to_datetime(df['Timestamp'], unit='ms').dt.normalize()
     df = df[['Date', 'Close Price (USD)']].set_index('Date')
     return df
-
+def convert_input_pca_regression(raw_json_input, content_type):
+    data = json.loads(raw_json_input)
+    df = pd.DataFrame([data])
+    return df
 
